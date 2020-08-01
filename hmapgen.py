@@ -1,5 +1,7 @@
 # Heightmap Generator by Travis Martin
 import os.path
+import time
+from pathlib import Path
 from PIL import Image
 
 # Vertex object.
@@ -34,11 +36,7 @@ class Face:
 		self.vertices = vertices
 
 	def __str__(self):
-		return(
-			'Face' +
-			'\n\tX range: ' + str(self.minimum_x()) + ' - ' + str(self.maximum_x()) +
-			'\n\tZ range: ' + str(self.minimum_z()) + ' - ' + str(self.maximum_z())
-		)
+		return 'Face\tX: ' + str(self.minimum_x()) + ' - ' + str(self.maximum_x()) + '\tZ: ' + str(self.minimum_z()) + ' - ' + str(self.maximum_z())
 
 	def maximum_x(self):
 		value = self.vertices[0].x
@@ -86,13 +84,7 @@ class Dimension:
 		self.maximum_value = 0
 
 	def __str__(self):
-		return(
-			'Dimension [' + self.label + ']' +
-			'\n\tUnique values: ' + str(len(self.unique_values)) +
-			'\n\tMinimum value: ' + str(self.minimum_value) +
-			'\n\tMaximum value: ' + str(self.maximum_value) +
-			'\n\tSpan: ' + str(self.span())
-		)
+		return 'Dimension [' + self.label + ']\t' + str(len(self.unique_values)) + ' unique values from ' + str(self.minimum_value) + ' - ' + str(self.maximum_value) + ' (Span: ' + str(self.span()) + ')'
 
 	def add_value(self, value):
 		if not isinstance(value, float):
@@ -108,14 +100,77 @@ class Dimension:
 	def span(self):
 		return self.maximum_value - self.minimum_value
 
-# Progess bar. Credit to Benjamin Cordier.
-def print_progress_bar(iteration, total, prefix = '', suffix = '', decimals = 1, length = 100, fill = '█', printEnd = "\r"):
-	percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
-	filledLength = int(length * iteration // total)
-	bar = fill * filledLength + '-' * (length - filledLength)
-	print('\r%s |%s| %s%% %s' % (prefix, bar, percent, suffix), end = printEnd)
-	if iteration == total: 
+# Progress bar object.
+class ProgressBar:
+	fill = '█'
+	unfill = '-'
+
+	def __init__(self, total_size, description = '', precision = 1, length = 50):
+		if not isinstance(total_size, int):
+			raise TypeError('total_size must be an integer.')
+		description = str(description)
+		if not isinstance(precision, int):
+			raise TypeError('precision must be an integer.')
+		if not isinstance(length, int):
+			raise TypeError('length must be an integer.')
+
+		self.i = 0
+		self.total_size = total_size
+		self.description = description # Displayed before progress bar.
+		self.start_time = time.time() # Time elapsed displays after progress bar.
+		self.precision = precision # Number of decimals to display.
+		self.length = length # Length of full progress bar.
+		self.ended = False # Make sure the bar doesn't spam the console if it goes too long.
+
+	def step(self, amount = 1):
+		if not isinstance(amount, int):
+			raise TypeError('amount must be an integer.')
+
+		self.i += amount
+		self.set_progress(self.i)
+
+	def set_progress(self, progress):
+		if not isinstance(progress, int):
+			raise TypeError('progress must be an integer.')
+
+		if self.ended:
+			return
+		self.i = progress
+		percent = ("{0:." + str(self.precision) + "f}").format(100 * (self.i / float(self.total_size)))
+		time_elapsed = ("{:." + str(self.precision) + "f}s").format(time.time() - self.start_time)
+		filledLength = int(self.length * self.i // self.total_size)
+		bar = ProgressBar.fill * filledLength + ProgressBar.unfill * (self.length - filledLength)
+		print('\r%s |%s| %s%% %s' % (self.description, bar, percent, time_elapsed), end = "\r")
+		if self.i >= self.total_size:
+			self.end()
+
+	def end(self):
+		self.ended = True
 		print()
+
+# Log object.
+class Log:
+	def __init__(self, path = str(Path(__file__).parent.absolute()), file_name = 'log'):
+		path = str(path)
+		file_name = str(file_name)
+
+		self.path = path + '\\' + file_name + '.txt'
+		self.log = open(self.path, 'w')
+		self.start_time = time.time()
+
+	def newline(self):
+		self.log.write('\n')
+
+	def write(self, text):
+		text = str(text)
+
+		self.log.write('[' + ("{:.1f}s").format(time.time() - self.start_time) + ']\t' + text + '\n')
+
+	def close(self):
+		self.log.close()
+
+# Make log file.
+log = Log()
 
 # Get model file.
 file_path = ""
@@ -130,6 +185,7 @@ while True:
 
 	file_path = query
 	break
+log.write("OBJ file path: " + file_path)
 
 # Get image scale information from the user.
 hmap_width = 0
@@ -140,7 +196,6 @@ while True:
 		break
 	except:
 		print('Input must represent an integer.')
-
 hmap_height = 0
 while True:
 	query = input('Heightmap height: ')
@@ -149,6 +204,29 @@ while True:
 		break
 	except:
 		print('Input must represent an integer.')
+log.write("Heightmap dimensions: " + str(hmap_width) + "x" + str(hmap_height))
+
+# Choose logging level.
+log_level = 0
+while True:
+	query = input(
+			'Log levels in order of speed:' +
+			'\n\t0: Minimal information.' +
+			'\n\t1: Progress bars.\tRecommended' +
+			'\n\t2: Progress bars and color log information.' +
+			'\n\t3: Progress bars and all log information.' +
+			'\nLog level: '
+	)
+	try:
+		log_level = int(query)
+		break
+	except:
+		print('Input must represent an integer.')
+if log_level < 0:
+	log_level = 0
+if log_level > 3:
+	log_level = 3
+log.write('Log level: ' + str(log_level))
 
 # Get total vertices and faces.
 total_vertices = 0
@@ -162,9 +240,16 @@ try:
 				total_faces += 1
 except Exception as error:
 	print('Error counting vertices and faces [' + str(error) + '].')
+log.write('Total vertices: ' + str(total_vertices))
+log.write('Total faces: ' + str(total_faces))
 
 # Get vertices.
 vertices = {}
+if log_level >= 3:
+	log.newline()
+	log.write('Vertices')
+if log_level >= 1:
+	progress_bar = ProgressBar(total_vertices, description = 'Vertices:')
 try:
 	with open(file_path, 'r') as file:
 		i = 0
@@ -176,20 +261,26 @@ try:
 				line_parts.pop(0)
 				vertex = Vertex(float(line_parts[0]), float(line_parts[1]), float(line_parts[2]), i)
 				vertices[i] = vertex
-				print_progress_bar(i, total_vertices, prefix='Vertices:', suffix='Complete', length=50)
+				if log_level >= 3:
+					log.write(vertex)
+				if log_level >= 1:
+					progress_bar.step()
 except Exception as error:
 	print('Error getting map file [' + str(error) + '].')
 
 # Get faces.
 faces = []
+if log_level >= 3:
+	log.newline()
+	log.write('Faces')
+if log_level >= 1:
+	progress_bar = ProgressBar(total_faces, description = 'Faces:')
 try:
 	with open(file_path, 'r') as file:
-		i = 0
 		for line in file:
 			line_parts = line.split()
 
 			if line_parts[0] == 'f':
-				i += 1
 				line_parts.pop(0)
 				face_vertices = []
 				for part in line_parts:
@@ -199,7 +290,10 @@ try:
 						raise Exception("Vertex not found.")
 				face = Face(face_vertices)
 				faces.append(face)
-				print_progress_bar(i, total_faces, prefix='Faces:', suffix='Complete', length=50)
+				if log_level >= 3:
+					log.write(face)
+				if log_level >= 1:
+					progress_bar.step()
 except Exception as error:
 	print('Error getting map file [' + str(error) + '].')
 
@@ -207,45 +301,81 @@ except Exception as error:
 x_dim = Dimension('X')
 y_dim = Dimension('Y')
 z_dim = Dimension('Z')
-i = 0
+if log_level >= 3:
+	log.newline()
+	log.write('Dimensions')
+if log_level >= 1:
+	progress_bar = ProgressBar(len(vertices), description = 'Dimensions:')
 for vertex in vertices.values():
 	i += 1
 	x_dim.add_value(float(vertex.x))
 	y_dim.add_value(float(vertex.y))
 	z_dim.add_value(float(vertex.z))
-	print_progress_bar(i, len(vertices), prefix='Dimensions:', suffix='Complete', length=50)
+	if log_level >= 1:
+		progress_bar.step()
 for dim in (x_dim, y_dim, z_dim):
 	dim.unique_values.sort()
+	if log_level >= 3:
+		log.write(dim)
 
 # Find coordinates to generate pixels from.
 x_step = x_dim.span() / hmap_width
 z_step = z_dim.span() / hmap_height
 x_steps = []
+if log_level >= 3:
+	log.newline()
+	log.write('X Steps')
+if log_level >= 1:
+	progress_bar = ProgressBar(hmap_width, description = 'X Steps:')
 for x in range(hmap_width):
 	value = x_dim.minimum_value + (x * x_step)
 	x_steps.append(value)
-	print_progress_bar(x + 1, hmap_width, prefix='X Steps:', suffix='Complete', length=50)
+	if log_level >= 3:
+		log.write(value)
+	if log_level >= 1:
+		progress_bar.step()
 z_steps = []
+if log_level >= 3:
+	log.newline()
+	log.write('Z Steps')
+if log_level >= 1:
+	progress_bar = ProgressBar(hmap_height, description = 'Z Steps:')
 for z in range(hmap_height):
 	value = z_dim.minimum_value + (z * z_step)
 	z_steps.append(value)
-	print_progress_bar(z + 1, hmap_height, prefix='Z Steps:', suffix='Complete', length=50)
+	if log_level >= 3:
+		log.write(value)
+	if log_level >= 1:
+		progress_bar.step()
 
 # Get heights for color values.
 y_step = y_dim.span() / 255;
 height_to_color = {}
+if log_level >= 3:
+	log.newline()
+	log.write('Layers')
+if log_level >= 1:
+	progress_bar = ProgressBar(256, description = 'Layering:')
 for value in range(256):
-	height_to_color[y_dim.minimum_value + (y_step * value)] = value
-	print_progress_bar(value, 255, prefix='Coloring:', suffix='Complete', length=50)
+	height = y_dim.minimum_value + (y_step * value)
+	height_to_color[height] = value
+	if log_level >= 3:
+		log.write('height[' + str(height) + '] = ' + str(value))
+	if log_level >= 1:
+		progress_bar.step()
 
 # Create image.
 image = Image.new("RGB", (hmap_width, hmap_height), '#FF0000')
 
 # Set pixel colors.
 pixels = image.load()
-progress = 0
-progress_max = len(x_steps) * len(z_steps)
 x_pixel = -1
+if log_level >= 3:
+	log.newline()
+	log.write('Pixel Information')
+if log_level >= 1:
+	progress_bar = ProgressBar(len(x_steps) * len(z_steps), description = 'Coloring:')
+progress = 0
 for x in x_steps:
 	x_pixel += 1
 	if x_pixel > hmap_width:
@@ -268,15 +398,26 @@ for x in x_steps:
 				break
 		else:
 			# Coordinates aren't covered by a face. Leave default color.
+			if log_level >= 2:
+				log.write('Pixel (' + str(x_pixel) + ', ' + str(z_pixel) + ') Step (' + str(x) + ', ' + str(z) + ') has no height.')
 			continue
 		this_color = 0
 		for height in height_to_color:
 			if height >= this_face.height():
 				this_color = height_to_color[height]
 				break
-		# print(str(x_pixel) + " - " + str(z_pixel) + " -- " + str(hmap_width) + " - " + str(hmap_height) + " -- " + str(this_color))
 		pixels[x_pixel, z_pixel] = (this_color, this_color, this_color)
-		print_progress_bar(progress, progress_max, prefix='Pixellating:', suffix='Complete', length=50)
+		if log_level >= 2:
+			log.write('Pixel (' + str(x_pixel) + ', ' + str(z_pixel) + ') Step (' + str(x) + ', ' + str(z) + ')\tHeight: ' + str(this_face.height()) + '\tColor: ' + str(this_color))
+		if log_level >= 1:
+			progress_bar.set_progress(progress)
 
-# Show image for user to save.
-image.show()
+# Save image.
+output_path = str(Path(__file__).parent.absolute()) + '\\output.png'
+image.save(output_path)
+log.newline()
+log.write('Heightmap saved to ' + output_path)
+
+# Close log file.
+log.write('End of program.')
+log.close()
