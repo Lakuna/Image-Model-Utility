@@ -150,6 +150,8 @@ class ProgressBar:
 
 # Log object.
 class Log:
+	# import time
+	# from pathlib import Path
 	def __init__(self, path = str(Path(__file__).parent.absolute()), file_name = 'log'):
 		path = str(path)
 		file_name = str(file_name)
