@@ -92,3 +92,74 @@ while True:
 	break
 log.write("PNG file path: " + file_path)
 
+# Get division information from user.
+light_point = 0
+while True:
+	query = input('Light point (exclusive): ')
+	try:
+		light_point = int(query)
+		break
+	except:
+		print('Input must represent an integer.')
+if light_point < 0:
+	light_point = 0
+if light_point > 256:
+	light_point = 256
+log.write("Light point: " + str(light_point))
+
+# Choose logging level.
+log_level = 0
+while True:
+	query = input(
+			'Log levels in order of speed:' +
+			'\n\t0: Minimal information.\tRecommended' +
+			'\n\t1: Progress bars.' +
+			'\n\t2: Progress bars and color log information.' +
+			'\nLog level: '
+	)
+	try:
+		log_level = int(query)
+		break
+	except:
+		print('Input must represent an integer.')
+if log_level < 0:
+	log_level = 0
+if log_level > 2:
+	log_level = 2
+log.write('Log level: ' + str(log_level))
+
+# Simplify gray pixels in heightmap.
+image = Image.open(file_path)
+pixels = image.load()
+width, height = image.size
+if log_level >= 1:
+	progress_bar = ProgressBar(width * height, description = 'Coloring:')
+for x in range(width):
+	for y in range(height):
+		r, g, b, a = image.getpixel((x, y))
+		if r == g and g == b:
+			if r > light_point:
+				# Light
+				pixels[x, y] = (255, 255, 255)
+				if log_level >= 2:
+					log.write('Pixel (' + str(x) + ', ' + str(y) + ') is light.')
+			else:
+				# Dark
+				pixels[x, y] = (0, 0, 0)
+				if log_level >= 2:
+					log.write('Pixel (' + str(x) + ', ' + str(y) + ') is dark.')
+		else:
+			if log_level >= 2:
+				log.write('Pixel (' + str(x) + ', ' + str(y) + ') is not gray.')
+		if log_level >= 1:
+			progress_bar.step()
+
+# Save image.
+output_path = str(Path(__file__).parent.absolute()) + '\\output.png'
+image.save(output_path)
+log.newline()
+log.write('Simplified heightmap saved to ' + output_path)
+
+# Close log file.
+log.write('End of program.')
+log.close()

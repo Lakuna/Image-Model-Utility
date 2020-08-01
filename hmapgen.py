@@ -213,8 +213,8 @@ log_level = 0
 while True:
 	query = input(
 			'Log levels in order of speed:' +
-			'\n\t0: Minimal information.' +
-			'\n\t1: Progress bars.\tRecommended' +
+			'\n\t0: Minimal information.\tRecommended' +
+			'\n\t1: Progress bars.' +
 			'\n\t2: Progress bars and color log information.' +
 			'\n\t3: Progress bars and all log information.' +
 			'\nLog level: '
