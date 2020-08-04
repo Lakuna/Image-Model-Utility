@@ -208,27 +208,16 @@ while True:
 		print('Input must represent an integer.')
 log.write("Heightmap dimensions: " + str(hmap_width) + "x" + str(hmap_height))
 
-# Choose logging level.
-log_level = 0
+# Get mirror type from user.
+mirror_type = 0
 while True:
-	query = input(
-			'Log levels in order of speed:' +
-			'\n\t0: Minimal information.\tRecommended' +
-			'\n\t1: Progress bars.' +
-			'\n\t2: Progress bars and color log information.' +
-			'\n\t3: Progress bars and all log information.' +
-			'\nLog level: '
-	)
+	query = input('Mirror types:\n\t0: None\t\t\t1: Across X\t2: Across Y\n\t3:Across X and Y\t4: Across XY\nMirror type: ')
 	try:
-		log_level = int(query)
+		mirror_type = int(query)
 		break
 	except:
 		print('Input must represent an integer.')
-if log_level < 0:
-	log_level = 0
-if log_level > 3:
-	log_level = 3
-log.write('Log level: ' + str(log_level))
+log.write('Mirror type: ' + str(mirror_type))
 
 # Get total vertices and faces.
 total_vertices = 0
@@ -247,11 +236,6 @@ log.write('Total faces: ' + str(total_faces))
 
 # Get vertices.
 vertices = {}
-if log_level >= 3:
-	log.newline()
-	log.write('Vertices')
-if log_level >= 1:
-	progress_bar = ProgressBar(total_vertices, description = 'Vertices:')
 try:
 	with open(file_path, 'r') as file:
 		i = 0
@@ -263,20 +247,11 @@ try:
 				line_parts.pop(0)
 				vertex = Vertex(float(line_parts[0]), float(line_parts[1]), float(line_parts[2]), i)
 				vertices[i] = vertex
-				if log_level >= 3:
-					log.write(vertex)
-				if log_level >= 1:
-					progress_bar.step()
 except Exception as error:
 	print('Error getting map file [' + str(error) + '].')
 
 # Get faces.
 faces = []
-if log_level >= 3:
-	log.newline()
-	log.write('Faces')
-if log_level >= 1:
-	progress_bar = ProgressBar(total_faces, description = 'Faces:')
 try:
 	with open(file_path, 'r') as file:
 		for line in file:
@@ -292,10 +267,6 @@ try:
 						raise Exception("Vertex not found.")
 				face = Face(face_vertices)
 				faces.append(face)
-				if log_level >= 3:
-					log.write(face)
-				if log_level >= 1:
-					progress_bar.step()
 except Exception as error:
 	print('Error getting map file [' + str(error) + '].')
 
@@ -303,68 +274,52 @@ except Exception as error:
 x_dim = Dimension('X')
 y_dim = Dimension('Y')
 z_dim = Dimension('Z')
-if log_level >= 3:
-	log.newline()
-	log.write('Dimensions')
-if log_level >= 1:
-	progress_bar = ProgressBar(len(vertices), description = 'Dimensions:')
 for vertex in vertices.values():
 	i += 1
 	x_dim.add_value(float(vertex.x))
 	y_dim.add_value(float(vertex.y))
 	z_dim.add_value(float(vertex.z))
-	if log_level >= 1:
-		progress_bar.step()
 for dim in (x_dim, y_dim, z_dim):
 	dim.unique_values.sort()
-	if log_level >= 3:
-		log.write(dim)
+	log.write(dim)
+
+# GC
+del vertices
 
 # Find coordinates to generate pixels from.
 x_step = x_dim.span() / hmap_width
 z_step = z_dim.span() / hmap_height
 x_steps = []
-if log_level >= 3:
-	log.newline()
-	log.write('X Steps')
-if log_level >= 1:
-	progress_bar = ProgressBar(hmap_width, description = 'X Steps:')
 for x in range(hmap_width):
 	value = x_dim.minimum_value + (x * x_step)
 	x_steps.append(value)
-	if log_level >= 3:
-		log.write(value)
-	if log_level >= 1:
-		progress_bar.step()
+if mirror_type == 2 or mirror_type == 3 or mirror_type == 4:
+	del x_steps[int(hmap_width / 2):]
 z_steps = []
-if log_level >= 3:
-	log.newline()
-	log.write('Z Steps')
-if log_level >= 1:
-	progress_bar = ProgressBar(hmap_height, description = 'Z Steps:')
 for z in range(hmap_height):
 	value = z_dim.minimum_value + (z * z_step)
 	z_steps.append(value)
-	if log_level >= 3:
-		log.write(value)
-	if log_level >= 1:
-		progress_bar.step()
+if mirror_type == 1 or mirror_type == 3:
+	del z_steps[int(hmap_height / 2):]
+
+# Cut off excess faces.
+if mirror_type == 1 or mirror_type == 3:
+	faces = list(filter(lambda face: face.minimum_z() <= z_steps[-1], faces))
+elif mirror_type == 2 or mirror_type == 3 or mirror_type == 4:
+	faces = list(filter(lambda face: face.minimum_x() <= x_steps[-1], faces))
+log.write('Relevant faces: ' + str(len(faces)))
 
 # Get heights for color values.
 y_step = y_dim.span() / 255;
 height_to_color = {}
-if log_level >= 3:
-	log.newline()
-	log.write('Layers')
-if log_level >= 1:
-	progress_bar = ProgressBar(256, description = 'Layering:')
 for value in range(256):
 	height = y_dim.minimum_value + (y_step * value)
 	height_to_color[height] = value
-	if log_level >= 3:
-		log.write('height[' + str(height) + '] = ' + str(value))
-	if log_level >= 1:
-		progress_bar.step()
+
+# GC
+del x_dim
+del y_dim
+del z_dim
 
 # Create image.
 image = Image.new("RGB", (hmap_width, hmap_height), '#FF0000')
@@ -372,12 +327,7 @@ image = Image.new("RGB", (hmap_width, hmap_height), '#FF0000')
 # Set pixel colors.
 pixels = image.load()
 x_pixel = -1
-if log_level >= 3:
-	log.newline()
-	log.write('Pixel Information')
-if log_level >= 1:
-	progress_bar = ProgressBar(len(x_steps) * len(z_steps), description = 'Coloring:')
-progress = 0
+progress_bar = ProgressBar(len(x_steps), description = 'Progress:', precision = 0)
 for x in x_steps:
 	x_pixel += 1
 	if x_pixel > hmap_width:
@@ -392,7 +342,6 @@ for x in x_steps:
 			break
 
 		# Search for face that contains the specified coordinates.
-		progress += 1
 		this_face = None
 		for face in faces:
 			if face.maximum_x() > x and face.minimum_x() < x and face.maximum_z() > z and face.minimum_z() < z:
@@ -400,26 +349,35 @@ for x in x_steps:
 				break
 		else:
 			# Coordinates aren't covered by a face. Leave default color.
-			if log_level >= 2:
-				log.write('Pixel (' + str(x_pixel) + ', ' + str(z_pixel) + ') Step (' + str(x) + ', ' + str(z) + ') has no height.')
 			continue
 		this_color = 0
 		for height in height_to_color:
 			if height >= this_face.height():
 				this_color = height_to_color[height]
 				break
+
+		# Color correct pixels.
 		pixels[x_pixel, z_pixel] = (this_color, this_color, this_color)
-		if log_level >= 2:
-			log.write('Pixel (' + str(x_pixel) + ', ' + str(z_pixel) + ') Step (' + str(x) + ', ' + str(z) + ')\tHeight: ' + str(this_face.height()) + '\tColor: ' + str(this_color))
-		if log_level >= 1:
-			progress_bar.set_progress(progress)
+		if mirror_type == 0:
+			pass
+		elif mirror_type == 1:
+			pixels[x_pixel, -(z_pixel + 1)] = (this_color, this_color, this_color)
+		elif mirror_type == 2:
+			pixels[-(x_pixel + 1), z_pixel] = (this_color, this_color, this_color)
+		elif mirror_type == 3:
+			pixels[x_pixel, -(z_pixel + 1)] = (this_color, this_color, this_color)
+			pixels[-(x_pixel + 1), z_pixel] = (this_color, this_color, this_color)
+			pixels[-(x_pixel + 1), -(z_pixel + 1)] = (this_color, this_color, this_color)
+		elif mirror_type == 4:
+			pixels[-(x_pixel + 1), -(z_pixel + 1)] = (this_color, this_color, this_color)
+
+	# Advance progress bar after each column.
+	progress_bar.step()
 
 # Save image.
 output_path = str(Path(__file__).parent.absolute()) + '\\output.png'
 image.save(output_path)
-log.newline()
 log.write('Heightmap saved to ' + output_path)
 
 # Close log file.
-log.write('End of program.')
 log.close()
