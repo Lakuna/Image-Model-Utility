@@ -101,6 +101,7 @@ class Dimension:
 		return self.maximum_value - self.minimum_value
 
 # Progress bar object.
+# Much credit to Benjamin Cordier.
 class ProgressBar:
 	fill = '█'
 	unfill = '-'
@@ -160,19 +161,21 @@ class Log:
 		self.log = open(self.path, 'w')
 		self.start_time = time.time()
 
-	def newline(self):
-		self.log.write('\n')
-
-	def write(self, text):
+	def write(self, text = ''):
 		text = str(text)
 
-		self.log.write('[' + ("{:.1f}s").format(time.time() - self.start_time) + ']\t' + text + '\n')
+		if text == '' or text == '\n' or text == '\r':
+			self.log.write('\n')
+		else:
+			self.log.write('[' + ("{:.1f}s").format(time.time() - self.start_time) + ']\t' + text + '\n')
 
 	def close(self):
 		self.log.close()
 
 # Make log file.
 log = Log()
+log.write()
+log.write()
 
 # Get model file.
 file_path = ""
