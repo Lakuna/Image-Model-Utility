@@ -37,14 +37,20 @@ pixels = image.load()
 width, height = image.size
 for x in range(width):
 	for y in range(height):
-		r, g, b = image.getpixel((x, y))
-		if r == g and g == b:
+		r, g, b, a = image.getpixel((x, y))
+		if r == g and g == b and a != 0:
 			if r > light_point:
 				# Light
 				pixels[x, y] = (255, 255, 255)
 			else:
 				# Dark
 				pixels[x, y] = (0, 0, 0)
+		elif a == 0:
+			# Leave transparent pixels as-is.
+			pass
+		else:
+			# Set non-gray pixels to bright red so that they're apparent.
+			pixels[x, y] = (255, 0, 0)
 
 # Save image.
 output_path = str(Path(__file__).parent.absolute()) + '\\output.png'
